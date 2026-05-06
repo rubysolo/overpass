@@ -1,0 +1,2 @@
+# Overpass configuration
+manifestPathTemplate: "{{.LocalOverrides}}/applications/{{.App}}/app/manifest.js"
