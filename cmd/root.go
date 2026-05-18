@@ -24,7 +24,12 @@ type Config struct {
 	// ManifestPathTemplate is a Go template string that defines the manifest output path.
 	// Available variables: .Monorepo (monorepo root), .LocalOverrides (local-overrides dir), .App (app name)
 	ManifestPathTemplate string `yaml:"manifestPathTemplate"`
+	// Runner is the package manager used to start the app dev server.
+	// Supported values: pnpm, yarn, npm
+	Runner string `yaml:"runner"`
 }
+
+const defaultRunner = "pnpm"
 
 // loadConfig reads .overpass.yml from the monorepo root
 func loadConfig(monoRepoPath string) (*Config, error) {
@@ -46,7 +51,25 @@ func loadConfig(monoRepoPath string) (*Config, error) {
 		return nil, fmt.Errorf(".overpass.yml missing required field 'manifestPathTemplate'.\n\nExample:\nmanifestPathTemplate: \"{{.LocalOverrides}}/applications/{{.App}}/app/manifest.js\"")
 	}
 
+	config.Runner = strings.ToLower(strings.TrimSpace(config.Runner))
+	if config.Runner == "" {
+		config.Runner = defaultRunner
+	}
+
+	if !isSupportedRunner(config.Runner) {
+		return nil, fmt.Errorf(".overpass.yml has unsupported 'runner' value %q. Supported values: pnpm, yarn, npm", config.Runner)
+	}
+
 	return &config, nil
+}
+
+func isSupportedRunner(runner string) bool {
+	switch runner {
+	case "pnpm", "yarn", "npm":
+		return true
+	default:
+		return false
+	}
 }
 
 // expandPathTemplate expands a template string with the given data
@@ -243,8 +266,13 @@ func generateManifest(monoRepoPath, appName, publicURL string, config *Config) e
 	return nil
 }
 
-func startDevServer(monoRepoPath, appName string) (*exec.Cmd, <-chan string, error) {
-	cmd := exec.Command("yarn", "start", appName)
+func startDevServer(monoRepoPath, appName string, config *Config) (*exec.Cmd, <-chan string, error) {
+	runnerCmd, runnerArgs, err := buildRunnerStartCommand(config.Runner, appName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cmd := exec.Command(runnerCmd, runnerArgs...)
 	cmd.Dir = monoRepoPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -268,6 +296,17 @@ func startDevServer(monoRepoPath, appName string) (*exec.Cmd, <-chan string, err
 	}()
 
 	return cmd, outputChan, nil
+}
+
+func buildRunnerStartCommand(runner, appName string) (string, []string, error) {
+	switch runner {
+	case "pnpm", "yarn":
+		return runner, []string{"start", appName}, nil
+	case "npm":
+		return runner, []string{"run", "start", "--", appName}, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported runner %q", runner)
+	}
 }
 
 func restoreManifest(monoRepoPath, appName string, config *Config) error {
@@ -363,7 +402,7 @@ browser-compatible manifest file, and runs the local development server.`,
 			os.Exit(1)
 		}
 
-		devCmd, devOutputChan, err := startDevServer(monoRepoPath, appName)
+		devCmd, devOutputChan, err := startDevServer(monoRepoPath, appName, config)
 		if err != nil {
 			fmt.Println("Error starting dev server:", err)
 			if err := syscall.Kill(-cfCmd.Process.Pid, syscall.SIGKILL); err != nil {

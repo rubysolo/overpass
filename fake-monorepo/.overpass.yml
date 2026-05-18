@@ -1,2 +1,3 @@
 # Overpass configuration
 manifestPathTemplate: "{{.LocalOverrides}}/applications/{{.App}}/app/manifest.js"
+runner: "pnpm"

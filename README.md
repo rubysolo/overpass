@@ -19,7 +19,7 @@ Before using `overpass`, ensure you have the following installed:
 
 - **cloudflared** - [Cloudflare Tunnel daemon](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)
 - **Go** 1.25.7 or later (for building from source)
-- **Yarn** - Package manager for running the dev server
+- **Package runner** - `pnpm` (default), `yarn`, or `npm` for running the dev server
 
 ## Installation
 
@@ -60,6 +60,8 @@ overpass <app-name>
 ```yaml
 # Overpass configuration
 manifestPathTemplate: "{{.LocalOverrides}}/applications/{{.App}}/app/manifest.js"
+# Optional. Defaults to pnpm. Supported: pnpm, yarn, npm
+runner: "pnpm"
 ```
 
 ### Template Variables
@@ -139,7 +141,7 @@ The TUI provides:
 2. **Discovers the port** - Parses webpack or vite config to find the dev server port
 3. **Starts cloudflared** - Creates a tunnel to `localhost:<port>` and captures the public URL
 4.  **Generates manifest** - Creates the manifest file using the path defined in `.overpass.yml` with the tunnel URL
-5. **Starts dev server** - Runs `yarn start <app-name>` in the monorepo root
+5. **Starts dev server** - Runs `<runner> start <app-name>` in the monorepo root (`npm` uses `npm run start -- <app-name>`)
 6. **Launches TUI** - Displays the interactive terminal interface
 7. **Graceful shutdown** - On exit, kills all background processes and restores the manifest file via `git restore`
 
